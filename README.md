@@ -1,4 +1,4 @@
-# plot_lib
+# plot_lib (v0.1)
 
 Simple python library for quickly plotting 2D, 3D and 4D interactive images within Jupyter Notebooks, with the goals of being simple (call plot(image) and done!, plots should look very good by default), versatile (can easily plot masks, points and boxes along with the image) and hackable (the code is very simple and any missing functinality can be easily added).
 
@@ -30,7 +30,17 @@ pip install pandas, urlib, tarfile
 
 The basic usage is the following:
 ```python
-from plot_lib import plot
+
+#Within a Jupyter Notebook:
+
+#We need to load the library from wherever it was cloned
+#We will asume it is located at: ~/plot_lib
+from pathlib import Path
+import sys
+sys.path.append(Path.home())
+
+#Then import any required funtions
+from plot_lib.plot_lib import plot
 plot(np.zeros([100]*3))
 ```
 
