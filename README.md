@@ -6,10 +6,10 @@ It was originally designed as a quick way to explore medical images in the conte
 
 ## Examples
 
-Please, look at the Notebook: [Introduction to plot_lib](./Introduction to plot_lib.ipynb) for further information and examples. Some examples of the kind of output it can generate:
+Please, look at the Notebook: [Introduction to plot_lib](Introduction to plot_lib.ipynb) for further information and examples. Some examples of the kind of output it can generate:
 
-![Example 1](./media/example1 "Example 1")
-![Example 2](./media/example2 "Example 1")
+![Example 1](./media/example1.png "Example 1")
+![Example 2](./media/example2.png "Example 2")
 
 ## Requirements and installation
 
