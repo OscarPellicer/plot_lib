@@ -16,7 +16,7 @@ To install and use, please clone this repository and install required packages:
 git clone https://github.com/OscarPellicer/plot_lib.git
 
 #Install required libs using pip or conda
-pip install matplotlib, numpy, ipywidgets, ipython, scipy
+pip install matplotlib, numpy, ipywidgets, ipython, scipy, simpleitk
 #conda install matplotlib, numpy, ipywidgets, ipython, scipy
 #conda install simpleitk --channel simpleitk
 
