@@ -136,7 +136,7 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
           z=None, ct=0, is_color=False, intensity_normalization=True, slow_mode='auto',
           hide_axis=False, points=[], boxes=[], masks=[], text_kwargs= {},
           plot_label_edge=True, alpha=0.2, default_colors= mcolors.TABLEAU_COLORS,
-          center_crop=[], save_as=None):
+          center_crop=[], save_as=None, allowed_label_overlap=[12, 2]):
     '''
     Plots a 2D, 3D or 4D image (with an ipython slider to move through z, and optionally other 
     to move through channels / time). x and y axii are shown in mm (if spacing is provided, 
@@ -151,7 +151,6 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
         z: Default slice to plot at the beginnig (None for middle slice)
         ct: If the image has multiple channels (or time steps), provide which channel (time step) to plot
         is_color: Set to True if the image is RGB(A)
-        secondary_slicer: Set to True to slice through time / channels
         intensity_normalization: Set to True to preprocess image intensity for better display
         hide_axis: Do not show axis coordinates
         slow_mode: If True, image only updates after releasing mouse (useful for large images)
@@ -164,6 +163,7 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
         text_kwargs: Keyword-argument dictionary to pass to all text plotting commands (plt.text(**text_kwargs))
         center_crop: Plot only the center x*y(*z) crop of the image (in mm)
         save_as: Path to save figure. None to not save figure
+        allowed_label_overlap: Maximum overlap allowed among text labels [along x, along y] (in mm)
     '''
     #Axii x & y respect spacing. Axis z does not
     #Get a normalized numpy image from img
@@ -207,10 +207,12 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
         
     #Mask info that has to be plotted for every slice [x, y, z, color, text]
     masks_info= []
+    
+    #OverlapChecker keeps a list of label positions and makes sure there is no overlap between them
+    OC= OverlapChecker(threshold=allowed_label_overlap)
        
     #Combine the image (nda) with all the masks
     if masks != []:
-        OC= OverlapChecker()
         if not is_color:
             nda= np.stack([nda]*3, axis=-1)
             is_color= True
@@ -263,10 +265,9 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
                 #Update masks_info for plotting additional info
                 if text!= '':
                     #Get min_x & min_y for every slice in z that has some data
-                    masks_info+= [[*OC.check_and_fix([np.argwhere(mask_id[z].sum(axis=0)).min(), 
-                                                      np.argwhere(mask_id[z].sum(axis=1)).max()]), 
-                                                      z, color, text] \
-                                                      for z in range(mask_id.shape[0]) if np.sum(mask_id[z]) > 0]
+                    masks_info+= [[np.argwhere(mask_id[z].sum(axis=0)).min(), 
+                                   np.argwhere(mask_id[z].sum(axis=1)).max(), 
+                                   z, color, text] for z in range(mask_id.shape[0]) if np.sum(mask_id[z]) > 0]
             
     #If image is very big, set the slow_mode to True
     if slow_mode == 'auto': slow_mode = np.prod(nda.shape) > MAX_SLOW_VOLUME
@@ -278,6 +279,8 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
     
     #Main callback
     def plot_slice(z=None):
+        #OC must be reset for every slice
+        OC.reset()
 
         # Create fig and ax
         fig = plt.figure(figsize=figsize, dpi=dpi)
@@ -299,7 +302,7 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
             for (px, py, pz, color, text) in masks_info:
                 if z is None or z==round(pz):
                     x_plot, y_plot= px*spacing[0], py*spacing[1]
-                    plt.text(x_plot, y_plot, text, horizontalalignment='left',
+                    plt.text(*OC.check_and_fix([x_plot, y_plot]), text, horizontalalignment='left',
                              verticalalignment='top', color=color, **text_kwargs)
             
         #Plot points if provided
@@ -315,7 +318,7 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
                     #Plot points
                     x_plot, y_plot= (px - x_offset)*spacing[0], (py - y_offset)*spacing[1]
                     plt.plot(x_plot, y_plot, marker=marker, color=color, ms=5., mfc='none')
-                    plt.text(x_plot, y_plot, text, horizontalalignment='left',
+                    plt.text(*OC.check_and_fix([x_plot, y_plot]), text, horizontalalignment='left',
                             verticalalignment='top', color=color, **text_kwargs)
         
         #Plot boxes if provided
@@ -334,7 +337,7 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
                     rect = patches.Rectangle((xmin_plot, ymin_plot), xd_plot, yd_plot, linewidth=1, 
                                              edgecolor=color, facecolor='none', zorder=zorder)
                     ax.add_patch(rect)
-                    plt.text(xmin_plot, ymin_plot + yd_plot, text, horizontalalignment='left',
+                    plt.text(*OC.check_and_fix([xmin_plot, ymin_plot + yd_plot]), text, horizontalalignment='left',
                             verticalalignment='top', color=color, **text_kwargs)
                     
         #Hide axis
@@ -386,35 +389,57 @@ def get_crop_offsets(img, crop, spacing):
 class OverlapChecker():
     '''
         Checks if two positions overlap, and assigns a new position if they do
-        As of now, it is disabled since it breaks sometimes
     '''
-    def __init__(self, threshold=5, step_size=np.array([0, 5])):
-        self.positions=[]
+    def __init__(self, threshold=[15, 2], step_size=np.array([0, 1])):
         self.threshold= threshold
         self.step_size= step_size
+        self.reset()
         
     def check_and_fix(self, new_pos):
-#         new_pos= np.array(new_pos)
-#         fixed= False
-#         while not fixed:
-#             fixed= True
-#             for pos in self.positions:
-#                 if pos[0] == new_pos[0] and np.abs(np.linalg.norm(pos - new_pos)) < self.threshold:
-#                     new_pos+= self.step_size
-#                     fixed= False
-#         self.positions.append(new_pos)
+        new_pos= np.array(new_pos)
+        fixed= False
+        while not fixed:
+            fixed= True
+            for pos in self.positions:
+                abs_diff= np.abs(pos - new_pos)
+                if abs_diff[0] < self.threshold[0] and abs_diff[1] < self.threshold[1]:
+                    new_pos+= self.step_size
+                    fixed= False
+        self.positions.append(new_pos)
         return new_pos
+    def reset(self):
+        self.positions=[]
         
+def read_dicom(path):
+    import SimpleITK as sitk
+    import os
+    if os.path.isdir(path):
+        reader = sitk.ImageSeriesReader()
+        names= reader.GetGDCMSeriesFileNames(path)
+        reader.SetFileNames(names)
+        img = reader.Execute()
+    else:
+        img = sitk.ReadImage(path)
+    return img
+    
 def process_initial_image(img, spacing, normalize):
     '''
-        Processes image, either numpy or SimpleITK, and returns numpy and spacing
+        Processes image, either numpy, SimpleITK, or even an image path (using SimpleITK), 
+        and returns numpy image and spacing. This adaptor could be esily extended to 
+        directly deal with Pytorch or Tensorflow tensors if needed
     '''
-    if not isinstance(img, (np.ndarray, np.generic) ):
+    if isinstance(img, (np.ndarray, np.generic) ): #It is a numpy image
+        imgp= img.copy().astype(np.float32)
+    elif isinstance(img, str): #It is a path
+        import SimpleITK as sitk
+        imgp= read_dicom(img)
+        spacing= imgp.GetSpacing()
+        imgp= sitk.GetArrayFromImage(imgp).astype(np.float32)
+    else: #It is a SimpleITK image
         import SimpleITK as sitk
         spacing= img.GetSpacing()
         imgp= sitk.GetArrayFromImage(img).astype(np.float32)
-    else:
-        imgp= img.copy()
+
     if normalize:
         #If there are more than MAX_UNIQUE unique values, 
         #we assume it is safe to normalize (e.g.: it is not a mask)
@@ -422,12 +447,13 @@ def process_initial_image(img, spacing, normalize):
             imgp= rescale_intensity(imgp)
         else:
             pass
+            #print('Warning: The image provided might be a mask, which should not be normalized')
             #raise RuntimeError('A mask should not be normalized')
     return imgp, spacing
 
 def rescale_intensity(image, thres=(1.0, 99.0)):
     '''
-        Clips the intensity of animage between the thresh[0]th
+        Clips the intensity of an image between the thresh[0]th
         and thresh[1]th percentiles, and the scales it between 0 and 1
     '''
     val_l, val_h = np.percentile(image, thres)
