@@ -33,11 +33,11 @@ The basic usage is the following:
 #We need to load the library from wherever it was cloned
 #We will asume it is located at: ~/plot_lib
 from pathlib import Path
-import sys
-sys.path.append(Path.home())
+import sys, os
+sys.path.append(os.path.join(Path.home(), 'plot_lib'))
 
 #Then import any required funtions
-from plot_lib.plot_lib import plot
+from plot_lib import plot
 import numpy as np
 plot(np.zeros([100]*3))
 ```

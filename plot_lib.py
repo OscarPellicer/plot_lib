@@ -1,5 +1,5 @@
 '''
-Copyright 2020 Oscar José Pellicer Valero
+Copyright 2021 Oscar José Pellicer Valero
 Universitat de València, Spain
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and 
@@ -21,9 +21,10 @@ This is heavily inspired by https://github.com/InsightSoftwareConsortium/SimpleI
 
 TO DOs:
     With plot_alpha & plot4, regenerate a single slice for every value (not the whole volume)
-    Make code in plot more modular & make use of ipywidgets layouts & implement plot_pair
-    Improve documentation
-    Give the option to create a buffer of figures in another thread to display quickly
+    Experiment making use of ipywidgets layouts & implement plot_pair to plot two images side
+    by side connected by a single slider
+    Give the option to create a buffer of figures in another thread to display more quickly
+    Improve documentation and make a pip package
 '''
 
 #~~~~~~~~~~~~ Load required libraries ~~~~~~~~~~~~#
@@ -241,6 +242,10 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
             if (slicer and not np.all(mask.shape[:3] == nda.shape[:3])) \
                or (not slicer and not np.all(mask.shape[:2] == nda.shape[:2])):
                 raise RuntimeError('One of the masks has different shape than the image (%s vs %s)'%(mask.shape[:3], nda.shape))
+            if len(mask.shape) > 3:
+                raise RuntimeError('The mask should be 3D and not have a channel dimension (4D). '+\
+                                   'Please use plot_multi_mask or provide each mask channel separately. '+\
+                                   'E.g. masks=[mask[...,i] for i in range(mask.shape[-1])]')
             if not (len(ids) == len(colors) and len(ids) == len(texts)):
                 raise RuntimeError('Lists of ids, color and text must have the same length')
 
@@ -249,7 +254,8 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
                 mask_id= (mask == id)
                 if plot_label_edge:
                     from scipy.ndimage.morphology import binary_erosion
-                    mask_id^= binary_erosion(mask_id, np.ones((1,3,3)) if slicer else np.ones((3,3))).astype(mask_id.dtype)
+                    mask_id^= binary_erosion(mask_id, np.ones((1,3,3)) if slicer 
+                                             else np.ones((3,3))).astype(mask_id.dtype)
                     for i in range(3): 
                         nda[mask_id,i]= color[i]
                 else:
