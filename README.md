@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/324881519.svg)](https://zenodo.org/badge/latestdoi/324881519)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4395271.svg)](https://doi.org/10.5281/zenodo.4395271)
 # plot_lib (v0.2)
 
 `plot_lib` is a library for quickly plotting 2D, 3D and 4D interactive images within Jupyter Notebooks with the following goals: 
