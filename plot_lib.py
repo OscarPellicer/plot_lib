@@ -20,17 +20,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 This is heavily inspired by https://github.com/InsightSoftwareConsortium/SimpleITK-Notebooks
 
 TO DOs:
-    With plot_alpha & plot4, regenerate a single slice for every value (not the whole volume)
-    Experiment making use of ipywidgets layouts & implement plot_pair to plot two images side
-    by side connected by a single slider
-    Give the option to create a buffer of figures in another thread to display more quickly
-    Improve documentation and make a pip package
+ - Experiment making use of ipywidgets layouts & implement plot_pair to plot two images side
+   by side (possibly connected by a single slider), instead of relying on Jupyter Notebook
+   HTML manipulation
+ - With plot_alpha & plot4, regenerate a single slice for every value (not the whole volume)
+ - Give the option to create a buffer of figures in another thread to display more quickly
+ - Make a pip package
 '''
 
 #~~~~~~~~~~~~ Load required libraries ~~~~~~~~~~~~#
 
 #Mandatory: matplotlib, numpy, ipywidgets, ipython
-#Optional: scipy (if plot_label_edge==True), SimpleITK (for using SimpleITK images as input)
+#Optional: scipy (if plot_label_edge==True)
+#          SimpleITK (for using SimpleITK images or paths as input)
 
 import matplotlib.pyplot as plt
 from matplotlib import patches
@@ -41,6 +43,7 @@ from IPython.display import display
 
 #~~~~~~~~~~~~ Global defaults ~~~~~~~~~~~~#
 
+#Maximum number of values (IDs) that a mask is supposed to have
 #Raise Exception if trying to process automatically a mask
 #containing more than MAX_UNIQUE different values
 MAX_UNIQUE= 100
@@ -54,7 +57,24 @@ MAX_SLOW_VOLUME= 10000000
 def plot_alpha(img1, img2, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', color='r',
                 intensity_normalization=True, **kwargs):
     '''
-        Plots an image mixed with another given an alpha value
+        Plots an Plots an overlay of any two images given an `alpha `value and a `color`
+        for the second image
+        
+        Parameters
+        ----------
+        img1: array, SimpleITK Image or str (path to the image)
+            First image to combine. Can either be a numpy array [(z,)y,x,(c/t,)], a SimpleITK
+            Image, a path to a medical image (e.g. image.nrrd) or even to a DICOM directory.
+        img2: array, SimpleITK Image or str (path to the image)
+            Second image to combine. Can either be a numpy array [(z,)y,x,(c/t,)], a SimpleITK
+            Image, a path to a medical image (e.g. image.nrrd) or even to a DICOM directory.
+        alpha: float between 0 and 1, default 0.5
+            Parameter that controls how much of the second image appears over the first one.
+            If `alpha = 0.`, only the first image is shown
+            If `alpha = 1.`, only the second image is shown
+            If `alpha > 0 and < 1`, a combination of both images is shown
+        color: matplotlib-compatible color, default 'r'
+            Combine the second image as a given color overlay over the first one
     '''
     #Initial preprocessing
     imgs= []
@@ -92,7 +112,16 @@ def plot_alpha(img1, img2, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', color
     
 def plot_multi_mask(img, mask, spacing=(1,1,1), **kwargs):
     '''
-        Plots an image along with all the channels from its mask
+        Plots an image along with all the channels from its mask. Usually, segmentation masks
+        contain a single channel with (possibly) multiple IDs. However, if the mask has multiple
+        channels too, this funtion goes over all of them and automatizes plotting them
+        
+        Parameters
+        ----------
+        mask: array, SimpleITK Image or str (path to the image)
+            Segmentation mask with multiple channels. Can either be a numpy array [(z,)y,x,(c/t,)], 
+            a SimpleITK Image, a path to a medical image (e.g. mask.nrrd) or even to a DICOM directory.
+        *See `plot`*
     '''
     mask, spacing= process_initial_image(mask, spacing, False)
     mask= mask[...,np.newaxis] if len(mask.shape) == 3 else mask
@@ -108,18 +137,28 @@ def plot_multi_mask(img, mask, spacing=(1,1,1), **kwargs):
 def plot_channel_alpha(img, channels=[0,1], spacing=(1, 1, 1), **kwargs):
     '''
         Plots an overlay of any two channels of an image
+        
+        Parameters
+        ----------
+        channels: list or tuple of ints, default [0,1]
+            Channels to overlay on top of each other
+        *See `plot`*
     '''
     img, spacing= process_initial_image(img, spacing, intensity_normalization)
     plot_alpha(img[...,channels[0]], img[...,channels[1]], spacing=spacing, **kwargs)
     
 def plot4(img, ct=None, spacing=(1, 1, 1), intensity_normalization=True, **kwargs):
     '''
-        Adds a second slicer to move through time / channels
+        Adds a second slicer to move through time/channels
+        
+        Parameters
+        ----------
+        *See `plot_alpha` and `plot`*
     '''
     #Initial preprocessing
     img, spacing= process_initial_image(img, spacing, intensity_normalization)
     
-    #Callback for time /channel slider
+    #Callback for time/channel slider
     def callback(ct):
         plot(img, spacing=spacing, 
              intensity_normalization=intensity_normalization, ct=ct, **kwargs)
@@ -143,28 +182,69 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
     to move through channels / time). x and y axii are shown in mm (if spacing is provided, 
     or x is a SimpleITK image), however z axis is shown as slice index.
         
-    Params:
-        img: Image to show. Can either be a numpy array [(z,)y,x,(c/t,)] or a SimpleITK Image
-        title: Title to show along with the plot
-        dpi: DPI of the plot. It scales all plot matplotlib elements (e.g.: text sizes, ax sizes)
-        scale: Float or 'auto': the scale of the plot itself
-        sapcing: If img is given as an array, please provide the spacing to get faithful axis values
-        z: Default slice to plot at the beginnig (None for middle slice)
-        ct: If the image has multiple channels (or time steps), provide which channel (time step) to plot
-        is_color: Set to True if the image is RGB(A)
-        intensity_normalization: Set to True to preprocess image intensity for better display
-        hide_axis: Do not show axis coordinates
-        slow_mode: If True, image only updates after releasing mouse (useful for large images)
-        points: List of points [x, y, z, (marker_style), (color), (text)]. In pixel coordinates!
-        boxes: List of [xmin, xmax, ymin, ymax, zmin, zmax, (color), (text), (zorder)]. In pixel coodinates!
-        masks: List of masks [mask, ([id1, id2, ...]), ([col1, col2, ...]), ([text1, text2, ...])]
-        plot_label_edge: If True, shows only mask's edge, else show masks as an overlay
-        alpha: If plot_label_edge == False, the alpha of the masks' overlay
-        default_colors: List of matplotlib-compatible colors to be used in plotting if no colors are provided
-        text_kwargs: Keyword-argument dictionary to pass to all text plotting commands (plt.text(**text_kwargs))
-        center_crop: Plot only the center x*y(*z) crop of the image (in mm)
-        save_as: Path to save figure. None to not save figure
-        allowed_label_overlap: Maximum overlap allowed among text labels [along x, along y] (in mm)
+    Parameters
+    ----------
+    img: array, SimpleITK Image or str (path to the image)
+        Image to show. Can either be a numpy array [(z,)y,x,(c/t,)], a SimpleITK Image, 
+        a path to a medical image (e.g. image.nrrd) or even to a DICOM directory.
+    title: str or None, default None
+        Title to show along with the plot
+    dpi: int, default 80
+        DPI of the plot. It scales all plot matplotlib elements (e.g.: text sizes, ax sizes)
+    scale: float or 'auto', default 'auto'
+        The scale of the plot itself (e.g.: 2., 5.). If auto, it sets the size so that two images
+        can fit side by side in a Jupyter Notebook
+    sapcing: list or tuple of two/three floats, default (1, 1, 1)
+        If `img` is given as an array, please provide the spacing to get faithful axis values (x,y,z)
+        in some real-world unit, such as mm
+    z: int or None, default None
+        Default slice to plot first, or None to plot the middle slice
+    ct: int, default 0
+        If the image has multiple channels (or time steps), provide which channel (time step) to plot
+    is_color: bool, default False
+        Set to True if the image is RGB(A)
+    intensity_normalization: bool, default True
+        Set to True to preprocess image intensity (by clipping from 1st to 99th percentile intensity
+        values) for better display. It will be set to False automatically if the image is identified
+        as a mask according to the MAX_UNIQUE global parameter
+    hide_axis: bool, default False
+        Do not show axis coordinates
+    slow_mode: bool or 'auto', default 'auto'
+        If True, image only updates after releasing mouse (useful for large images). If 'auto', it
+        will be set to True according to the MAX_SLOW_VOLUME global parameter
+    points: list of lists, default []
+        List of points to plot alongside the image in pixel coordinates.
+        Every item in the list follows the syntax: [x, y, z, (marker_style), (color), (text)], 
+        where values between parentheses are optional. If color is not provided, or set to the special
+        value 'default', then `default_colors` are employed sequentially
+    boxes: list of lists, default []
+        List of bounding boxes to plot alongside the image, in pixel coordinates. 
+        Every item in the list follows the syntax: [xmin, xmax, ymin, ymax, zmin, zmax, (color), (text), (zorder)]
+        where values between parentheses are optional. If color is not provided, or set to the special
+        value 'default', then `default_colors` are employed sequentially
+    masks: list of lists, or list of masks, default []
+        List of segmentation masks to plot alongside the image.
+        Every item of the list can be directly a mask, or follow the following syntax: 
+        [mask, ([id1, id2, ...]), ([col1, col2, ...]), ([text1, text2, ...]) ], where values between 
+        parentheses are optional. The first item of each internal list represents and ID (integer) within
+        the mask (typically 1), its color, and a text associated with it. The second item represents
+        another ID, and so on. View the `Introduction to plot_lib.ipynb` to see some examples.
+    text_kwargs: dict, default {}
+        Keyword-argument dictionary to pass to all text plotting commands. E.g.: plt.text(..., **text_kwargs)
+    plot_label_edge: bool, default True
+        If True, shows only mask's edge, else show masks as a color overlay
+    alpha: float, default 0.2
+        If 'plot_label_edge == False', the opacity of the masks' overlay
+    default_colors: list of matplotlib-compatible colors, default mcolors.TABLEAU_COLORS
+        List of matplotlib-compatible colors to be used in plotting if no colors are provided
+    center_crop: list or tuple of 3 ints, default []
+        Plot only the center x*y(*z) crop of the image (in the same units as `spacing`, e.g. mm)
+    save_as: str (save file), or None
+        Path to save figure. None to not save figure
+    allowed_label_overlap: list of two ints, default [12,2]
+        Maximum overlap allowed among text labels [along x, along y] (in the same units as `spacing`, e.g. mm).
+        If there are overlapped labels, they will be pushed down the image until the `allowed_label_overlap`
+        is respected.
     '''
     #Axii x & y respect spacing. Axis z does not
     #Get a normalized numpy image from img
@@ -371,8 +451,18 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
 
 def crop(img, crop, spacing):
     '''
-        Crops the center of the image of size `crop` (mm) for an image `img` of spacing `spacing`
-    '''
+        Crops the center of the image
+        
+        Parameters
+        ----------
+        img: array
+            Image to crop. Must be a numpy array [(z,)y,x,(c/t,)]
+        crop: list or tuple of 2 or 3 ints, default []
+            Center x*y(*z) crop of the image (in the same units as `spacing`, e.g. mm)
+            that will be extracted
+        sapcing: list or tuple of two/three ints, default (1, 1, 1)
+            Voxel spacing (x,y,z) in some real-world unit, such as mm
+    '''    
     [zs, ys, xs]= img.shape[:3]
     crop_x_start, crop_y_start, crop_z_start= get_crop_offsets(img, crop, spacing)
 
@@ -383,18 +473,38 @@ def crop(img, crop, spacing):
 def get_crop_offsets(img, crop, spacing):
     '''
         Returns the start of the offsets in pixel coordinates
+        
+        Parameters
+        ----------
+        img: array
+            Image to crop. Must be a numpy array [(z,)y,x,(c/t,)]
+        crop: list or tuple of 2 or 3 ints, default []
+            Center x*y(*z) crop of the image (in the same units as `spacing`, e.g. mm)
+            that will be extracted
+        sapcing: list or tuple of two/three ints, default (1, 1, 1)
+            Voxel spacing (x,y,z) in some real-world unit, such as mm
     '''
     [zs, ys, xs]= img.shape[:3]
     crop_x_start= int( (xs - crop[0]/spacing[0]) / 2 )
     crop_y_start= int( (ys - crop[1]/spacing[1]) / 2 )
     crop_z_start= int( (zs - crop[2]/spacing[2]) / 2 ) if len(crop) == 3 else 0 #len == 2
-    
+
     return crop_x_start, crop_y_start, crop_z_start
-    
 
 class OverlapChecker():
     '''
-        Checks if two positions overlap, and assigns a new position if they do
+        Checks if two positions overlap, and assigns a new position if they do. 
+        Interanlly, it keeps a list of all positions, and fixes any new incoming position
+        
+        Parameters
+        ----------
+        threshold: list of two floats, default [12,2]
+            Maximum overlap allowed among text labels [along x, along y] (in the same units as the image
+            `spacing`, e.g. mm). If there are overlapped labels, they will be pushed down the image until
+            the `threshold` is respected
+        step_size: array of two floats, default array([0, 1])
+            If there is overlap attempt displacing the overlapping item in the `step_size` direction and 
+            magitude iteratively until the overlap disapears
     '''
     def __init__(self, threshold=[15, 2], step_size=np.array([0, 1])):
         self.threshold= threshold
@@ -402,6 +512,19 @@ class OverlapChecker():
         self.reset()
         
     def check_and_fix(self, new_pos):
+        '''
+            Takes a new (possibly overlapping) position and returns a non-overlapping position
+            
+            Parameters
+            ----------
+            new_pos: array of two floats
+                Position to check and fix if it overlaps with any previous position
+             
+            Returns
+            -------
+            new_pos: array of two floats
+                New non-overlapping position
+        '''
         new_pos= np.array(new_pos)
         fixed= False
         while not fixed:
@@ -417,6 +540,18 @@ class OverlapChecker():
         self.positions=[]
         
 def read_dicom(path):
+    '''
+        Reads a medical image file or a dicom directory using SimpleITK
+        
+        Parameters
+        ----------
+        path: str
+            Path to image file or to DICOM directory
+        
+        Returns
+        -------
+        img: SimpleITK Image
+    '''
     import SimpleITK as sitk
     import os
     if os.path.isdir(path):
@@ -430,10 +565,29 @@ def read_dicom(path):
     
 def process_initial_image(img, spacing, normalize):
     '''
-        Processes image, either numpy, SimpleITK, or even an image path (using SimpleITK), 
-        and returns numpy image and spacing. This adaptor could be esily extended to 
+        Processes image, either numpy array, SimpleITK, or even an image path (using SimpleITK), 
+        and returns numpy image and its spacing. This adaptor could be esily extended to 
         directly deal with Pytorch or Tensorflow tensors if needed
+        
+        Parameters
+        ----------
+        img: array, SimpleITK Image or str (path to the image)
+            Image to show. Can either be a numpy array [(z,)y,x,(c/t,)], a SimpleITK Image, 
+            a path to a medical image (e.g. image.nrrd) or even to a DICOM directory.
+        sapcing: list or tuple of two/three floats
+            Voxel spacing (x,y,z) in some real-world unit, such as mm. It is only needed if the 
+            image is provided as a numpy array, otherwise it is provided by SimpleITK.
+        normalize: bool
+            Set to True to preprocess image intensity (by clipping from 1st to 99th percentile intensity
+            values) for better display. It will be set to False automatically if the image is identified
+            as a mask according to the MAX_UNIQUE global parameter
+            
+        Returns
+        -------
+        imgp: array
+        spacing: list of three floats
     '''
+    #Detect what kind of input was provided and process it accordingly
     if isinstance(img, (np.ndarray, np.generic) ): #It is a numpy image
         imgp= img.copy().astype(np.float32)
     elif isinstance(img, str): #It is a path
@@ -454,13 +608,22 @@ def process_initial_image(img, spacing, normalize):
         else:
             pass
             #print('Warning: The image provided might be a mask, which should not be normalized')
-            #raise RuntimeError('A mask should not be normalized')
     return imgp, spacing
 
 def rescale_intensity(image, thres=(1.0, 99.0)):
     '''
-        Clips the intensity of an image between the thresh[0]th
-        and thresh[1]th percentiles, and the scales it between 0 and 1
+        Clips the intensity of an image and rescales it between 0 and 1 for better display
+        
+        Parameters
+        ----------
+        image: array
+            Image to normalize
+        thresh: tuple or list of two floats between 0. and 100
+            Clip the image between the thresh[0]th and thresh[1]th percentiles
+            
+        Returns
+        -------
+        normalized_image: array
     '''
     val_l, val_h = np.percentile(image, thres)
     image[image < val_l] = val_l
@@ -470,7 +633,22 @@ def rescale_intensity(image, thres=(1.0, 99.0)):
 def plot_histogram(x, no_zeros=True, bins=128, zero_threshold=0.001, 
                    intensity_normalization=False):
     '''
-        Plots the historgram of an image
+        Plots the historgram of an array
+        
+        Parameters
+        ----------
+        x: array
+            Array upon which to compute the histogram
+        no_zeros: bool, default True
+            If `no_zeros == True`, only values above the `zero_threshold` are kept
+        bins: int, default 128
+            Number of bins for the histogram
+        zero_threshold: float, default 0.001
+            If `no_zeros == True`, only values above the `zero_threshold` are kept
+        intensity_normalization: bool, default False
+            Set to True to preprocess image intensity (by clipping from 1st to 99th percentile intensity
+            values) for better display. It will be set to False automatically if the image is identified
+            as a mask according to the MAX_UNIQUE global parameter
     '''
     x, _= process_initial_image(x, [1]*3, intensity_normalization)
     x= x.flatten()
