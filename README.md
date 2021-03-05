@@ -50,5 +50,5 @@ plot(np.zeros([100]*3))
 
 ## Citing the library
 ```
-Oscar J. Pellicer-Valero. (2021, March 5). OscarPellicer/plot_lib (Version v0.2). Zenodo. http://doi.org/10.5281/zenodo.4395272
+Oscar J. Pellicer-Valero. (2021, March 5). OscarPellicer/plot_lib (Version v0.2). Zenodo. https://doi.org/10.5281/zenodo.4395271
 ```
