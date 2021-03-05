@@ -3,7 +3,8 @@
 
 `plot_lib` is a library for quickly plotting 2D, 3D and 4D interactive images within Jupyter Notebooks with the following goals: 
  - Simple interface: `plot(image)`, `plot(image, masks=[mask])`, `plot(path_to_dicom_directory)`
- - Plots look very good by default
+ - Plot 2D, 3D and 4D interactive images with sliders that allow exploration of 3D and 4D images
+ - Publication-quality plots by default
  - Versatile: can easily plot masks, points and boxes along with the image
  - Hackable: the code is very simple and any missing functinality can be easily added
 
@@ -46,11 +47,6 @@ from plot_lib import plot
 import numpy as np
 plot(np.zeros([100]*3))
 ```
-
-## Non-exhaustive list of features:
- * Plot 2D, 3D and 4D (image channel or time dimension) interactive images (sliders allow exploration of 3D and 4D images)
- * Publication-quality images
- * Represent simulateneously images, masks, boxes, labels, points, etc.
 
 ## Citing the library
 ```
