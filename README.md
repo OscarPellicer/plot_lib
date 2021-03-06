@@ -13,7 +13,7 @@ It was originally designed as a quick way to explore medical images in the conte
 ## Examples
 Please, look at the Notebook: [Introduction to plot_lib](Introduction%20to%20plot_lib.ipynb) for further information and examples. Some examples of the kind of output it can generate:
 
-![Example 1](./media/example_1.png#1 "Example 1")
+![Example 1](./media/example_1.png "Example 1")
 ![Example 2](./media/example_2.png "Example 2")
 
 ## Requirements and installation
@@ -22,13 +22,13 @@ To install and use, please clone this repository and install required packages:
 git clone https://github.com/OscarPellicer/plot_lib.git
 
 #Install required libraries using e.g. pip or conda
-pip install matplotlib, numpy, ipywidgets, ipython, scipy, simpleitk
-#conda install matplotlib, numpy, ipywidgets, ipython, scipy
-#conda install simpleitk --channel simpleitk
+pip install matplotlib numpy ipywidgets ipython scipy simpleitk
+#conda install matplotlib numpy ipywidgets ipython scipy
+#conda install SimpleITK -c simpleitk
 
 #(Optional) Install packages required by the demo Notebook
-pip install pandas, urlib
-#conda install pandas, urlib
+pip install pandas urlib
+#conda install pandas urlib
 
 ```
 
