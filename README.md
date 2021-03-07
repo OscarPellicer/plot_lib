@@ -48,6 +48,12 @@ import numpy as np
 plot(np.zeros([100]*3))
 ```
 
+<div class="alert alert-block alert-info">
+<b>Note:</b> This library may not work properly if run from within Jupyter Lab, because ipywidgets may not work. See 
+    <a href="https://ipywidgets.readthedocs.io/en/latest/user_install.html#installing-the-jupyterlab-extension">this link</a> 
+    for more information. Running it in <b>Jupyter Notebook directly</b> is the recommended option.
+</div>
+
 ## Citing the library
 ```
 Oscar J. Pellicer-Valero. (2021, March 5). OscarPellicer/plot_lib (Version v0.2). Zenodo. https://doi.org/10.5281/zenodo.4395271
