@@ -22,8 +22,8 @@ To install and use, please clone this repository and install required packages:
 git clone https://github.com/OscarPellicer/plot_lib.git
 
 #Install required libraries using e.g. pip or conda
-pip install matplotlib numpy ipywidgets>=7.6 ipython scipy simpleitk
-#conda install matplotlib numpy ipywidgets>=7.6 ipython scipy
+pip install matplotlib numpy "ipywidgets>=7.6" ipython scipy simpleitk
+#conda install matplotlib numpy "ipywidgets>=7.6" ipython scipy
 #conda install SimpleITK -c simpleitk
 
 #(Optional) Install packages required by the demo Notebook
@@ -48,9 +48,7 @@ import numpy as np
 plot(np.zeros([100]*3))
 ```
 
-<div class="alert alert-block alert-info">
-<b>Note:</b> Since ipywidgets 7.6 the library should run fine both in Jupyter Lab and Jupyter Notebook!
-</div>
+**Note:** Since ipywidgets 7.6, `plot_lib` should run fine both in Jupyter Lab and Jupyter Notebook!
 
 ## Citing the library
 ```
