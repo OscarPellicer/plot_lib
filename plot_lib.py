@@ -50,14 +50,14 @@ MAX_UNIQUE= 100
 
 #If slow_mode is set to 'auto', activate only if the volume of
 #the image (in voxels) is above MAX_SLOW_VOLUME
-MAX_SLOW_VOLUME= 10000000
+MAX_SLOW_VOLUME= 100000000
     
 #~~~~~~~~~~~~ Simplified plotting functions ~~~~~~~~~~~~#
     
 def plot_alpha(img1, img2, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', color='r',
                 intensity_normalization=True, **kwargs):
     '''
-        Plots an Plots an overlay of any two images given an `alpha `value and a `color`
+        Plots an overlay of any two images given an `alpha `value and a `color`
         for the second image
         
         Parameters
@@ -176,7 +176,7 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
           z=None, ct=0, is_color=False, intensity_normalization=True, slow_mode='auto',
           hide_axis=False, points=[], boxes=[], masks=[], text_kwargs= {},
           plot_label_edge=True, alpha=0.2, default_colors= mcolors.TABLEAU_COLORS,
-          center_crop=[], save_as=None, allowed_label_overlap=[12, 2]):
+          center_crop=[], save_as=None, show=True, allowed_label_overlap=[12, 2]):
     '''
     Plots a 2D, 3D or 4D image (with an ipython slider to move through z, and optionally other 
     to move through channels / time). x and y axii are shown in mm (if spacing is provided, 
@@ -241,6 +241,8 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
         Plot only the center x*y(*z) crop of the image (in the same units as `spacing`, e.g. mm)
     save_as: str (save file), or None
         Path to save figure. None to not save figure
+    show: bool, default True
+        Show figure. Usually, set to False when `save_as` is not None
     allowed_label_overlap: list of two ints, default [12,2]
         Maximum overlap allowed among text labels [along x, along y] (in the same units as `spacing`, e.g. mm).
         If there are overlapped labels, they will be pushed down the image until the `allowed_label_overlap`
@@ -380,7 +382,7 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
         ax.set_ylim(ax.get_ylim()[::-1])
         
         #Show title
-        if title: 
+        if title is not None: 
             plt.title(title)
             
         #Mask info that has to be plotted for every slice [x, y, z, color, text]
@@ -432,18 +434,27 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
             ax.get_xaxis().set_visible(False)
             ax.get_yaxis().set_visible(False)
 
-        plt.show()
+        if show:
+            plt.show()
         
         #Save
         if save_as is not None:
-            fig.savefig(save_as, pad_inches=0)
+            fig.savefig(save_as, pad_inches=0, bbox_inches='tight')
             print('Figure saved as: %s'%save_as)
+            
+        #Close
+        if not show:
+            plt.close(fig)
+            plt.clf()
 
     if slicer:
-        s1 = IntSlider(min=0, max=nda.shape[0]-1, step=1, value= nda.shape[0]//2 if z is None else z, 
-                       description='z', continuous_update= not slow_mode)
-        s1.style.handle_color = 'lightblue'
-        interact(plot_slice, z=s1)
+        if show:
+            s1 = IntSlider(min=0, max=nda.shape[0]-1, step=1, value= nda.shape[0]//2 if z is None else z, 
+                           description='z', continuous_update= not slow_mode)
+            s1.style.handle_color = 'lightblue'
+            interact(plot_slice, z=s1)
+        else:
+            plot_slice(z=nda.shape[0]//2 if z is None else z)
     else:
         plot_slice()
         
