@@ -39,7 +39,7 @@ from matplotlib import patches
 import matplotlib.colors as mcolors
 import numpy as np
 from ipywidgets import interact, IntSlider, FloatSlider
-from IPython.display import display
+from IPython.display import display, HTML
 
 #~~~~~~~~~~~~ Global defaults ~~~~~~~~~~~~#
 
@@ -51,6 +51,10 @@ MAX_UNIQUE= 100
 #If slow_mode is set to 'auto', activate only if the volume of
 #the image (in voxels) is above MAX_SLOW_VOLUME
 MAX_SLOW_VOLUME= 100000000
+
+#Make sliders fit the whole width of the cell
+#Comment this out to disable this behaviour
+HTML('<style>{}</style>'.format(""".widget-hslider { width: auto !important} """))
     
 #~~~~~~~~~~~~ Simplified plotting functions ~~~~~~~~~~~~#
     
@@ -286,7 +290,7 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
         ysize, xsize= nda.shape[0], nda.shape[1]
         
     #Set default colors for plotting   
-    default_colors= [mcolors.to_rgb(color) for color in default_colors]*10 #Make sure not to run out
+    default_colors= [mcolors.to_rgb(color) for color in default_colors]*100 #Make sure not to run out
         
     #Mask info that has to be plotted for every slice [x, y, z, color, text]
     masks_info= []
