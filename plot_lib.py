@@ -19,12 +19,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 
 This is heavily inspired by https://github.com/InsightSoftwareConsortium/SimpleITK-Notebooks
 
-TO DOs:
- - Experiment making use of ipywidgets layouts & implement plot_pair to plot two images side
-   by side (possibly connected by a single slider), instead of relying on Jupyter Notebook
-   HTML manipulation
- - With plot_alpha & plot4, regenerate a single slice for every value (not the whole volume)
- - Give the option to create a buffer of figures in another thread to display more quickly
+TO DO:
+ - Make better use of ipywidgets layouts & implement plot_pair to plot two images side
+   by side (possibly connected by a single slider)
  - Make a pip package
 '''
 
@@ -52,38 +49,48 @@ MAX_UNIQUE= 100
 #the image (in voxels) is above MAX_SLOW_VOLUME
 MAX_SLOW_VOLUME= 100000000
 
-#Make sliders fit the whole width of the cell
-#Comment this out to disable this behaviour
+#Threshold to use for normalizing the images before plotting them
+INTENSITY_THRESHOLD= (1., 99.)
+#INTENSITY_THRESHOLD= (0.01, 99.99)
+
+#To make sliders fit the whole width of the cell, import plot_lib as
+#the last thing in a cell
 HTML('<style>{}</style>'.format(""".widget-hslider { width: auto !important} """))
     
 #~~~~~~~~~~~~ Simplified plotting functions ~~~~~~~~~~~~#
     
-def plot_alpha(img1, img2, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', color='r',
-                intensity_normalization=True, **kwargs):
+def plot_alpha(img_list, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', brightness=2.5,
+               colors=['w', 'r', 'b', 'g'], intensity_normalization=True, show=True, **kwargs):
     '''
-        Plots an overlay of any two images given an `alpha `value and a `color`
-        for the second image
+        Plots a color overlay of any number of images. If only two images are provided
+        a slider appears controlling the blending (`alpha`) between both.
         
         Parameters
         ----------
-        img1: array, SimpleITK Image or str (path to the image)
-            First image to combine. Can either be a numpy array [(z,)y,x,(c/t,)], a SimpleITK
+        img_list: list of array, SimpleITK Image or str (path to the image)
+            Images to combine. Each can either be a numpy array [(z,)y,x], a SimpleITK
             Image, a path to a medical image (e.g. image.nrrd) or even to a DICOM directory.
-        img2: array, SimpleITK Image or str (path to the image)
-            Second image to combine. Can either be a numpy array [(z,)y,x,(c/t,)], a SimpleITK
-            Image, a path to a medical image (e.g. image.nrrd) or even to a DICOM directory.
-        alpha: float between 0 and 1, default 0.5
-            Parameter that controls how much of the second image appears over the first one.
+            More than two images are supported, but then the alpha slider is no longer supported.
+        alpha: float between 0 and 1 or None, default 0.5
+            Parameter that controls how much of the second image appears over the first one
+            (only useful if combining two images, otherwise ignored)
             If `alpha = 0.`, only the first image is shown
             If `alpha = 1.`, only the second image is shown
             If `alpha > 0 and < 1`, a combination of both images is shown
-        color: matplotlib-compatible color, default 'r'
-            Combine the second image as a given color overlay over the first one
+            If `alpha = None` no slider is shown
+        colors: matplotlib-compatible color, default ['w', 'r', 'b', 'g']
+            Colors for combining the images
     '''
+    #Check input and warn about interface change
+    if not isinstance(img_list, list):
+        raise ValueError('All images to be plotted must be provided in a list'
+                         ' as the first argument')
+    
     #Initial preprocessing
-    imgs= []
-    for img in [img1, img2]:
+    imgs, colors_rgb= [], []
+    for img, col in zip(img_list, colors):
         img, spacing= process_initial_image(img, spacing, intensity_normalization)
+        colors_rgb.append(mcolors.to_rgb(col))
         imgs.append(img)
         
     if slow_mode == 'auto': slow_mode = np.prod(imgs[0].shape) > MAX_SLOW_VOLUME
@@ -94,25 +101,29 @@ def plot_alpha(img1, img2, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', color
         raise RuntimeError('Shapes of all images must be the same')
 
     #Alpha change callback
-    color= mcolors.to_rgb(color)
     def callback(alpha):
-        img1= np.stack([imgs[0]]*3, axis=-1)
-        img1*= (1-alpha)
-        for i in range(3): 
-            img1[...,i]+= imgs[1]*color[i]*alpha
-                        
-            #Simple color clipping
-            img1[img1 > 1.] = 1. 
-            img1[img1 < 0.] = 0.
+        #Create composite
+        img_final= np.zeros(list(imgs[0].shape) + [3])
+        intensities= [1-alpha, alpha] if len(imgs)==2 else [alpha/len(imgs)]*len(imgs)
+        for img, col, intensity in zip(imgs, colors_rgb, intensities):
+            for i in range(3):
+                img_final[...,i]+= img*col[i]*intensity
+                
+        #Simple color clipping
+        img_final[img_final > 1.] = 1. 
+        img_final[img_final < 0.] = 0.
             
-        plot(img1, spacing=spacing, is_color=True, slow_mode=slow_mode, 
-              intensity_normalization=False, **kwargs)
+        plot(img_final, spacing=spacing, is_color=True, slow_mode=slow_mode, 
+              intensity_normalization=False, show=show, brightness=brightness, **kwargs)
 
     #Define slider and start interaction
-    s1 = FloatSlider(min=0, max=1, step=0.05, value=alpha, 
-                       description='α', continuous_update=False)
-    s1.style.handle_color = 'lightblue'
-    interact(callback, alpha=s1)
+    if show and len(imgs) == 2 and alpha is not None:
+        s1 = FloatSlider(min=0, max=1, step=0.05, value=alpha, 
+                           description='α', continuous_update=False)
+        s1.style.handle_color = 'lightblue'
+        interact(callback, alpha=s1)
+    else:
+        callback(alpha if alpha is not None else 0.5)
     
 def plot_multi_mask(img, mask, spacing=(1,1,1), **kwargs):
     '''
@@ -149,30 +160,34 @@ def plot_channel_alpha(img, channels=[0,1], spacing=(1, 1, 1), **kwargs):
         *See `plot`*
     '''
     img, spacing= process_initial_image(img, spacing, intensity_normalization)
-    plot_alpha(img[...,channels[0]], img[...,channels[1]], spacing=spacing, **kwargs)
+    plot_alpha([img[...,channels[0]], img[...,channels[1]]], spacing=spacing, **kwargs)
     
-def plot4(img, ct=None, spacing=(1, 1, 1), intensity_normalization=True, **kwargs):
+def plot4(img, ct=None, spacing=(1, 1, 1), intensity_normalization=True, show=True, **kwargs):
     '''
         Adds a second slicer to move through time/channels
         
         Parameters
         ----------
-        *See `plot_alpha` and `plot`*
+        ct: int or None, default None
+            First channel /time slice to plot
     '''
     #Initial preprocessing
     img, spacing= process_initial_image(img, spacing, intensity_normalization)
     
     #Callback for time/channel slider
     def callback(ct):
-        plot(img, spacing=spacing, 
-             intensity_normalization=intensity_normalization, ct=ct, **kwargs)
+        plot(img, spacing=spacing, intensity_normalization=intensity_normalization,
+             ct=ct, show=show, **kwargs)
     
     #Define slider and start interaction
-    s1 = IntSlider(min=0, max=img.shape[-1]-1, step=1, 
-                     value=int(img.shape[-1]/2) if ct is None else ct, 
-                     description='c/t', continuous_update=False)
-    s1.style.handle_color = 'lightblue'
-    interact(callback, ct=s1)
+    if show:
+        s1 = IntSlider(min=0, max=img.shape[-1]-1, step=1, 
+                         value=int(img.shape[-1]/2) if ct is None else ct, 
+                         description='c/t', continuous_update=False)
+        s1.style.handle_color = 'lightblue'
+        interact(callback, ct=s1)
+    else:
+        callback(ct)
     
 #~~~~~~~~~~~~ Main ploting function ~~~~~~~~~~~~#
 
@@ -180,7 +195,8 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
           z=None, ct=0, is_color=False, intensity_normalization=True, slow_mode='auto',
           hide_axis=False, points=[], boxes=[], masks=[], text_kwargs= {},
           plot_label_edge=True, alpha=0.2, default_colors= mcolors.TABLEAU_COLORS,
-          center_crop=[], save_as=None, show=True, allowed_label_overlap=[12, 2]):
+          center_crop=[], save_as=None, show=True, allowed_label_overlap=[12, 12],
+          brightness=1., interactive=True):
     '''
     Plots a 2D, 3D or 4D image (with an ipython slider to move through z, and optionally other 
     to move through channels / time). x and y axii are shown in mm (if spacing is provided, 
@@ -251,6 +267,10 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
         Maximum overlap allowed among text labels [along x, along y] (in the same units as `spacing`, e.g. mm).
         If there are overlapped labels, they will be pushed down the image until the `allowed_label_overlap`
         is respected.
+    brightness: float, default 1.
+        Factor for increasing the brightness of the image (applied after normalization)
+    interactive: bool, default True
+        If False, the slider is not shown and the image is not interactive
     '''
     #Axii x & y respect spacing. Axis z does not
     #Get a normalized numpy image from img
@@ -282,12 +302,15 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
             nda= rescale_intensity(nda)
     else:
         x_offset, y_offset, z_offset= 0, 0, 0
+               
+    #Apply brightness
+    nda*= brightness
+    nda[nda > 1.] = 1. 
+    nda[nda < 0.] = 0.
     
     #Get axis size
-    if (slicer):
-        ysize, xsize= nda.shape[1], nda.shape[2]
-    else:
-        ysize, xsize= nda.shape[0], nda.shape[1]
+    if (slicer): ysize, xsize= nda.shape[1], nda.shape[2]
+    else:        ysize, xsize= nda.shape[0], nda.shape[1]
         
     #Set default colors for plotting   
     default_colors= [mcolors.to_rgb(color) for color in default_colors]*100 #Make sure not to run out
@@ -452,7 +475,7 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
             plt.clf()
 
     if slicer:
-        if show:
+        if show and interactive:
             s1 = IntSlider(min=0, max=nda.shape[0]-1, step=1, value= nda.shape[0]//2 if z is None else z, 
                            description='z', continuous_update= not slow_mode)
             s1.style.handle_color = 'lightblue'
@@ -625,7 +648,7 @@ def process_initial_image(img, spacing, normalize):
             #print('Warning: The image provided might be a mask, which should not be normalized')
     return imgp, spacing
 
-def rescale_intensity(image, thres=(1.0, 99.0)):
+def rescale_intensity(image, thres=INTENSITY_THRESHOLD):
     '''
         Clips the intensity of an image and rescales it between 0 and 1 for better display
         
