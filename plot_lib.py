@@ -37,6 +37,8 @@ import matplotlib.colors as mcolors
 import numpy as np
 from ipywidgets import interact, IntSlider, FloatSlider
 from IPython.display import display, HTML
+from copy import copy
+import os
 
 #~~~~~~~~~~~~ Global defaults ~~~~~~~~~~~~#
 
@@ -195,7 +197,8 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
           z=None, ct=0, is_color=False, intensity_normalization=True, slow_mode='auto',
           hide_axis=False, points=[], boxes=[], masks=[], text_kwargs= {},
           plot_label_edge=True, alpha=0.2, default_colors= mcolors.TABLEAU_COLORS,
-          center_crop=[], save_as=None, show=True, allowed_label_overlap=[12, 12],
+          center_crop=[], save_as=None, save_as_volume=None, 
+          show=True, allowed_label_overlap=[12, 12],
           brightness=1., interactive=True):
     '''
     Plots a 2D, 3D or 4D image (with an ipython slider to move through z, and optionally other 
@@ -259,8 +262,11 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
         List of matplotlib-compatible colors to be used in plotting if no colors are provided
     center_crop: list or tuple of 3 ints, default []
         Plot only the center x*y(*z) crop of the image (in the same units as `spacing`, e.g. mm)
-    save_as: str (save file), or None
-        Path to save figure. None to not save figure
+    save_as: str (e.g.: 'slice.png'), or None
+        Path to save figure (current slice only). None to not save figure
+    save_as_volume: str (e.g.: 'volume.nii.gz'), or None
+        Path to save figure (whole volume image). None to not save figure.
+        It does NOT respect the original image properties (spacing, etc.) as of now.
     show: bool, default True
         Show figure. Usually, set to False when `save_as` is not None
     allowed_label_overlap: list of two ints, default [12,2]
@@ -467,13 +473,34 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
         #Save
         if save_as is not None:
             fig.savefig(save_as, pad_inches=0, bbox_inches='tight')
-            print('Figure saved as: %s'%save_as)
+            #print('Figure saved as: %s'%save_as)
             
         #Close
         if not show:
             plt.close(fig)
             plt.clf()
 
+    if save_as_volume is not None:
+        #First, save all slices independently
+        show_t= copy(show); show= False
+        slice_pngs= []
+        print('Generating volume image', end='')
+        for sl in range(nda.shape[0]):
+            save_as= '%s_%04d.png'%(save_as_volume.split('.')[0], sl)
+            plot_slice(z=sl)
+            slice_pngs.append(plt.imread(save_as)[...,:3])
+            os.remove(save_as) #Comment this line to keep the pngs
+            print('.', end='')
+        show= show_t
+        
+        #Now, compose the final image and save it
+        import SimpleITK as sitk
+        out= np.stack(slice_pngs, axis=0)
+        out_sitk= sitk.GetImageFromArray(out, isVector=True)
+        sitk.WriteImage(out_sitk, save_as_volume)
+        print(' Saved as: %s'%save_as_volume)
+        
+            
     if slicer:
         if show and interactive:
             s1 = IntSlider(min=0, max=nda.shape[0]-1, step=1, value= nda.shape[0]//2 if z is None else z, 
