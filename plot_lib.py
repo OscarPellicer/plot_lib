@@ -60,7 +60,39 @@ INTENSITY_THRESHOLD= (1., 99.)
 HTML('<style>{}</style>'.format(""".widget-hslider { width: auto !important} """))
     
 #~~~~~~~~~~~~ Simplified plotting functions ~~~~~~~~~~~~#
-    
+def plot_composite(img1, img2, n_tiles=(8, 8), method='checkerboard', 
+                   spacing=(1, 1, 1), intensity_normalization=True, 
+                   normalization_threshold=0.1, **kwargs):
+    '''
+        Plots the composite of two images using a checkerboard pattern, the difference, or 
+        a simple blend. Assumes that both images have the same size and spacing, fails otherwise.
+        Requieres scikit image.
+        
+        Parameters
+        ----------
+        img1: array, SimpleITK Image or str (path to the image)
+            First image of the composite
+        img2: array, SimpleITK Image or str (path to the image)
+            Second image of the composite
+        method: str, default 'checkerboard'
+            One of {‘diff’, ‘blend’, ‘checkerboard’}
+        n_tiles: tuple of two ints, default (8, 8)
+            Used only for the `checkerboard` method. Specifies the number of 
+            tiles (row, column) to divide the image.
+    '''
+    #Preprocess images and check that shape and spacing are the same
+    img1, spacing1= process_initial_image(img1, spacing, intensity_normalization, normalization_threshold)
+    img2, spacing2= process_initial_image(img2, spacing, intensity_normalization, normalization_threshold)
+    if not np.all(img1.shape == img2.shape):
+        raise RuntimeError(f"The size of both images must be the same: {img1.shape} vs. {img2.shape}")
+    if not np.all(np.array(spacing1) == np.array(spacing2)):
+        raise RuntimeError(f"The spacing of both images must be the same: {spacing1} vs. {spacing2}")
+        
+    #Construct the composite and plot
+    from skimage.util import compare_images
+    comp= np.stack([compare_images(a, b, n_tiles=n_tiles, method=method) for a, b in zip(img1, img2)], axis=0)
+    plot(comp, spacing=spacing1, intensity_normalization=False, **kwargs)   
+ 
 def plot_alpha(img_list, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', brightness=2.5,
                colors=['w', 'r', 'b', 'g'], intensity_normalization=True, show=True, **kwargs):
     '''
