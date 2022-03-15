@@ -1,5 +1,5 @@
 '''
-Copyright 2021 Oscar José Pellicer Valero
+Copyright 2022 Oscar José Pellicer Valero
 Universitat de València, Spain
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and 
@@ -49,17 +49,14 @@ MAX_UNIQUE= 100
 
 #If slow_mode is set to 'auto', activate only if the volume of
 #the image (in voxels) is above MAX_SLOW_VOLUME
-MAX_SLOW_VOLUME= 100000000
-
-#Threshold to use for normalizing the images before plotting them
-INTENSITY_THRESHOLD= (1., 99.)
-#INTENSITY_THRESHOLD= (0.01, 99.99)
+MAX_SLOW_VOLUME= 1e8
 
 #To make sliders fit the whole width of the cell, import plot_lib as
 #the last thing in a cell
-HTML('<style>{}</style>'.format(""".widget-hslider { width: auto !important} """))
+display(HTML(f"<style>.widget-hslider {{ width: {'auto'} !important }} </style>"))
     
 #~~~~~~~~~~~~ Simplified plotting functions ~~~~~~~~~~~~#
+
 def plot_composite(img1, img2, n_tiles=(8, 8), method='checkerboard', 
                    spacing=(1, 1, 1), intensity_normalization=True, 
                    normalization_threshold=0.1, **kwargs):
@@ -91,10 +88,11 @@ def plot_composite(img1, img2, n_tiles=(8, 8), method='checkerboard',
     #Construct the composite and plot
     from skimage.util import compare_images
     comp= np.stack([compare_images(a, b, n_tiles=n_tiles, method=method) for a, b in zip(img1, img2)], axis=0)
-    plot(comp, spacing=spacing1, intensity_normalization=False, **kwargs)   
- 
-def plot_alpha(img_list, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', brightness=2.5,
-               colors=['w', 'r', 'b', 'g'], intensity_normalization=True, show=True, **kwargs):
+    plot(comp, spacing=spacing1, intensity_normalization=False, **kwargs)
+    
+def plot_alpha(img_list, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', brightness=1.,
+               colors=['green', 'magenta', 'yellow', 'orange'], show=True, 
+               intensity_normalization=True, normalization_threshold=10., **kwargs):
     '''
         Plots a color overlay of any number of images. If only two images are provided
         a slider appears controlling the blending (`alpha`) between both.
@@ -112,7 +110,7 @@ def plot_alpha(img_list, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', brightn
             If `alpha = 1.`, only the second image is shown
             If `alpha > 0 and < 1`, a combination of both images is shown
             If `alpha = None` no slider is shown
-        colors: matplotlib-compatible color, default ['w', 'r', 'b', 'g']
+        colors: matplotlib-compatible color, default ['green', 'magenta', 'yellow', 'orange']
             Colors for combining the images
     '''
     #Check input and warn about interface change
@@ -123,7 +121,7 @@ def plot_alpha(img_list, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', brightn
     #Initial preprocessing
     imgs, colors_rgb= [], []
     for img, col in zip(img_list, colors):
-        img, spacing= process_initial_image(img, spacing, intensity_normalization)
+        img, spacing= process_initial_image(img, spacing, intensity_normalization, normalization_threshold)
         colors_rgb.append(mcolors.to_rgb(col))
         imgs.append(img)
         
@@ -148,7 +146,7 @@ def plot_alpha(img_list, spacing=(1, 1, 1), alpha=0.5, slow_mode='auto', brightn
         img_final[img_final < 0.] = 0.
             
         plot(img_final, spacing=spacing, is_color=True, slow_mode=slow_mode, 
-              intensity_normalization=False, show=show, brightness=brightness, **kwargs)
+              intensity_normalization=True, show=show, brightness=brightness, **kwargs)
 
     #Define slider and start interaction
     if show and len(imgs) == 2 and alpha is not None:
@@ -183,7 +181,7 @@ def plot_multi_mask(img, mask, spacing=(1,1,1), **kwargs):
     plot(img, masks=masks, spacing=spacing, **kwargs)
     
 
-def plot_channel_alpha(img, channels=[0,1], spacing=(1, 1, 1), **kwargs):
+def plot_channel_alpha(img, channels=[0,1], spacing=(1, 1, 1), normalization_threshold=0.1, **kwargs):
     '''
         Plots an overlay of any two channels of an image
         
@@ -193,10 +191,11 @@ def plot_channel_alpha(img, channels=[0,1], spacing=(1, 1, 1), **kwargs):
             Channels to overlay on top of each other
         *See `plot`*
     '''
-    img, spacing= process_initial_image(img, spacing, intensity_normalization)
+    img, spacing= process_initial_image(img, spacing, intensity_normalization, normalization_threshold)
     plot_alpha([img[...,channels[0]], img[...,channels[1]]], spacing=spacing, **kwargs)
     
-def plot4(img, ct=None, spacing=(1, 1, 1), intensity_normalization=True, show=True, **kwargs):
+def plot4(img, ct=None, spacing=(1, 1, 1), intensity_normalization=True, 
+          normalization_threshold=0.1, show=True, **kwargs):
     '''
         Adds a second slicer to move through time/channels
         
@@ -206,11 +205,11 @@ def plot4(img, ct=None, spacing=(1, 1, 1), intensity_normalization=True, show=Tr
             First channel /time slice to plot
     '''
     #Initial preprocessing
-    img, spacing= process_initial_image(img, spacing, intensity_normalization)
+    img, spacing= process_initial_image(img, spacing, intensity_normalization, normalization_threshold)
     
     #Callback for time/channel slider
     def callback(ct):
-        plot(img, spacing=spacing, intensity_normalization=intensity_normalization,
+        plot(img, spacing=spacing, intensity_normalization=False,
              ct=ct, show=show, **kwargs)
     
     #Define slider and start interaction
@@ -226,7 +225,8 @@ def plot4(img, ct=None, spacing=(1, 1, 1), intensity_normalization=True, show=Tr
 #~~~~~~~~~~~~ Main ploting function ~~~~~~~~~~~~#
 
 def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
-          z=None, ct=0, is_color=False, intensity_normalization=True, slow_mode='auto',
+          z=None, ct=0, is_color=False, slow_mode='auto',
+          intensity_normalization=True, normalization_threshold=0.1,
           hide_axis=False, points=[], boxes=[], masks=[], text_kwargs= {},
           plot_label_edge=True, alpha=0.2, default_colors= mcolors.TABLEAU_COLORS,
           center_crop=[], save_as=None, save_as_volume=None, 
@@ -258,15 +258,17 @@ def plot(img, title=None, dpi=80, scale='auto', spacing=(1, 1, 1),
         If the image has multiple channels (or time steps), provide which channel (time step) to plot
     is_color: bool, default False
         Set to True if the image is RGB(A)
+    slow_mode: bool or 'auto', default 'auto'
+        If True, image only updates after releasing mouse (useful for large images). If 'auto', it
+        will be set to True according to the MAX_SLOW_VOLUME global parameter
     intensity_normalization: bool, default True
         Set to True to preprocess image intensity (by clipping from 1st to 99th percentile intensity
         values) for better display. It will be set to False automatically if the image is identified
         as a mask according to the MAX_UNIQUE global parameter
+    normalization_threshold: float between 0. and 100, default 0.1
+            Clip the image between the [Nth, 100 - Nth] percentiles if intensity_normalization=True
     hide_axis: bool, default False
         Do not show axis coordinates
-    slow_mode: bool or 'auto', default 'auto'
-        If True, image only updates after releasing mouse (useful for large images). If 'auto', it
-        will be set to True according to the MAX_SLOW_VOLUME global parameter
     points: list of lists, default []
         List of points to plot alongside the image in pixel coordinates.
         Every item in the list follows the syntax: [x, y, z, (marker_style), (color), (text)], 
@@ -633,6 +635,7 @@ class OverlapChecker():
                     fixed= False
         self.positions.append(new_pos)
         return new_pos
+    
     def reset(self):
         self.positions=[]
         
@@ -660,7 +663,7 @@ def read_dicom(path):
         img = sitk.ReadImage(path)
     return img
     
-def process_initial_image(img, spacing, normalize):
+def process_initial_image(img, spacing, normalize, normalization_threshold=0.1):
     '''
         Processes image, either numpy array, SimpleITK, or even an image path (using SimpleITK), 
         and returns numpy image and its spacing. This adaptor could be esily extended to 
@@ -678,6 +681,8 @@ def process_initial_image(img, spacing, normalize):
             Set to True to preprocess image intensity (by clipping from 1st to 99th percentile intensity
             values) for better display. It will be set to False automatically if the image is identified
             as a mask according to the MAX_UNIQUE global parameter
+        normalization_threshold: float between 0. and 100
+            Clip the image between the Nth and 100 - Nth percentiles if normalize=True
             
         Returns
         -------
@@ -701,13 +706,13 @@ def process_initial_image(img, spacing, normalize):
         #If there are more than MAX_UNIQUE unique values, 
         #we assume it is safe to normalize (e.g.: it is not a mask)
         if len(np.unique(imgp)) > MAX_UNIQUE:
-            imgp= rescale_intensity(imgp)
+            imgp= rescale_intensity(imgp, (normalization_threshold, 100.-normalization_threshold))
         else:
             pass
             #print('Warning: The image provided might be a mask, which should not be normalized')
     return imgp, spacing
 
-def rescale_intensity(image, thres=INTENSITY_THRESHOLD):
+def rescale_intensity(image, thres=[0.1, 99.9]):
     '''
         Clips the intensity of an image and rescales it between 0 and 1 for better display
         
